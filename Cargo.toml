@@ -1,0 +1,8 @@
+[package]
+name = "pwasm-validation"
+version = "0.1.0"
+authors = ["Pat Hickey <pat@moreproductive.org>"]
+
+[dependencies]
+parity-wasm = "0.31"
+memory_units = "0.3.0"
