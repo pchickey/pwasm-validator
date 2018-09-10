@@ -1,5 +1,10 @@
 extern crate parity_wasm;
 extern crate memory_units as memory_units_crate;
+#[cfg(test)]
+extern crate wabt;
+#[cfg(test)]
+#[macro_use]
+extern crate assert_matches;
 
 use std::error;
 use std::fmt;
@@ -278,7 +283,7 @@ pub fn validate_module(module: Module) -> Result<ValidatedModule, Error> {
 					index
 				)),
 			)?;
-			let code = FunctionReader::read_function(&context, function, function_body)
+			FunctionReader::read_function(&context, function, function_body)
 				.map_err(|e| {
 					let Error(ref msg) = e;
 					Error(format!("Function #{} reading/validation error: {}", index, msg))

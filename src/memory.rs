@@ -1,5 +1,5 @@
 
-use memory_units::{Pages, Bytes};
+use memory_units::{Pages};
 
 /// Maximal number of pages.
 const LINEAR_MEMORY_MAX_PAGES: Pages = Pages(65536);

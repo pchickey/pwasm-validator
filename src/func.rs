@@ -260,7 +260,7 @@ impl FunctionReader {
 				)?;
 			}
 			Else => {
-				let (block_type, if_not, end_label) = {
+				let (block_type, _if_not, end_label) = {
 					let top_frame = top_label(
 						&context.frame_stack,
 					);
@@ -299,7 +299,7 @@ impl FunctionReader {
 					(top.frame_type, top.block_type)
 				};
 
-				if let BlockFrameType::IfTrue { if_not, .. } = frame_type {
+				if let BlockFrameType::IfTrue { .. } = frame_type {
 					// A `if` without an `else` can't return a result.
 					if block_type != BlockType::NoResult {
 						return Err(
@@ -347,7 +347,7 @@ impl FunctionReader {
 			Br(depth) => {
 				Validator::validate_br(context, depth)?;
 
-				let target = require_target(
+				let _target = require_target(
 					depth,
 					&context.value_stack,
 					&context.frame_stack,
@@ -358,7 +358,7 @@ impl FunctionReader {
 			BrIf(depth) => {
 				Validator::validate_br_if(context, depth)?;
 
-				let target = require_target(
+				let _target = require_target(
 					depth,
 					&context.value_stack,
 					&context.frame_stack,
@@ -367,16 +367,14 @@ impl FunctionReader {
 			BrTable(ref table, default) => {
 				Validator::validate_br_table(context, table, default)?;
 
-				let mut targets = Vec::new();
 				for depth in table.iter() {
-					let target = require_target(
+					let _target = require_target(
 						*depth,
 						&context.value_stack,
 						&context.frame_stack,
 					);
-					targets.push(target);
 				}
-				let default_target = require_target(
+				let _default_target = require_target(
 					default,
 					&context.value_stack,
 					&context.frame_stack,
