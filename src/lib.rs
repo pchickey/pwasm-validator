@@ -1,36 +1,35 @@
-extern crate parity_wasm;
 extern crate memory_units as memory_units_crate;
+extern crate parity_wasm;
 #[cfg(test)]
 extern crate wabt;
 #[cfg(test)]
 #[macro_use]
 extern crate assert_matches;
 
-use std::error;
-use std::fmt;
-use std::collections::HashSet;
-use parity_wasm::elements::{
-	BlockType, External, GlobalEntry, GlobalType, Internal, MemoryType, Module, Instruction,
-	ResizableLimits, TableType, ValueType, InitExpr, Type,
-};
 use self::context::ModuleContextBuilder;
 use self::func::FunctionReader;
 use memory_units::Pages;
+use parity_wasm::elements::{
+	BlockType, External, GlobalEntry, GlobalType, InitExpr, Instruction, Internal, MemoryType,
+	Module, ResizableLimits, TableType, Type, ValueType,
+};
+use std::collections::HashSet;
+use std::error;
+use std::fmt;
 
 mod context;
 mod func;
-mod util;
-mod stack;
 mod memory;
+mod stack;
+mod util;
 
 #[cfg(test)]
 mod tests;
 
 pub mod memory_units {
-    pub use memory_units_crate::wasm32::*;
-    pub use memory_units_crate::{Bytes, ByteSize, RoundUpTo, size_of};
+	pub use memory_units_crate::wasm32::*;
+	pub use memory_units_crate::{size_of, ByteSize, Bytes, RoundUpTo};
 }
-
 
 /// Index of default linear memory.
 pub const DEFAULT_MEMORY_INDEX: u32 = 0;
@@ -72,9 +71,9 @@ impl ::std::ops::Deref for ValidatedModule {
 }
 
 impl ValidatedModule {
-    pub fn unwrap(self) -> Module {
-        self.module
-    }
+	pub fn unwrap(self) -> Module {
+		self.module
+	}
 }
 
 pub fn deny_floating_point(module: &Module) -> Result<(), Error> {
@@ -174,7 +173,8 @@ pub fn deny_floating_point(module: &Module) -> Result<(), Error> {
 			if let Some(typ) = types.get(sig.type_ref() as usize) {
 				match *typ {
 					Type::Function(ref func) => {
-						if func.params()
+						if func
+							.params()
 							.iter()
 							.chain(func.return_type().as_ref())
 							.any(|&typ| typ == ValueType::F32 || typ == ValueType::F64)
@@ -261,33 +261,32 @@ pub fn validate_module(module: Module) -> Result<ValidatedModule, Error> {
 	if function_section_len != code_section_len {
 		return Err(Error(format!(
 			"length of function section is {}, while len of code section is {}",
-			function_section_len,
-			code_section_len
+			function_section_len, code_section_len
 		)));
 	}
 
 	// validate every function body in user modules
 	if function_section_len != 0 {
 		// tests use invalid code
-		let function_section = module.function_section().expect(
-			"function_section_len != 0; qed",
-		);
-		let code_section = module.code_section().expect(
-			"function_section_len != 0; function_section_len == code_section_len; qed",
-		);
+		let function_section = module
+			.function_section()
+			.expect("function_section_len != 0; qed");
+		let code_section = module
+			.code_section()
+			.expect("function_section_len != 0; function_section_len == code_section_len; qed");
 		// check every function body
 		for (index, function) in function_section.entries().iter().enumerate() {
-			let function_body = code_section.bodies().get(index as usize).ok_or(
+			let function_body = code_section
+				.bodies()
+				.get(index as usize)
+				.ok_or(Error(format!("Missing body for function {}", index)))?;
+			FunctionReader::read_function(&context, function, function_body).map_err(|e| {
+				let Error(ref msg) = e;
 				Error(format!(
-					"Missing body for function {}",
-					index
-				)),
-			)?;
-			FunctionReader::read_function(&context, function, function_body)
-				.map_err(|e| {
-					let Error(ref msg) = e;
-					Error(format!("Function #{} reading/validation error: {}", index, msg))
-				})?;
+					"Function #{} reading/validation error: {}",
+					index, msg
+				))
+			})?;
 		}
 	}
 
@@ -308,9 +307,7 @@ pub fn validate_module(module: Module) -> Result<ValidatedModule, Error> {
 			// HashSet::insert returns false if item already in set.
 			let duplicate = export_names.insert(export.field()) == false;
 			if duplicate {
-				return Err(Error(
-					format!("duplicate export {}", export.field()),
-				));
+				return Err(Error(format!("duplicate export {}", export.field())));
 			}
 			match *export.internal() {
 				Internal::Function(function_index) => {
@@ -374,7 +371,13 @@ pub fn validate_module(module: Module) -> Result<ValidatedModule, Error> {
 	if let Some(data_section) = module.data_section() {
 		for data_segment in data_section.entries() {
 			context.require_memory(data_segment.index())?;
-			let init_ty = expr_const_type(data_segment.offset(), context.globals())?;
+			let init_ty = expr_const_type(
+				data_segment
+					.offset()
+					.as_ref()
+					.ok_or(Error("Invalid offset".into()))?,
+				context.globals(),
+			)?;
 			if init_ty != ValueType::I32 {
 				return Err(Error("segment offset should return I32".into()));
 			}
@@ -386,7 +389,13 @@ pub fn validate_module(module: Module) -> Result<ValidatedModule, Error> {
 		for element_segment in element_section.entries() {
 			context.require_table(element_segment.index())?;
 
-			let init_ty = expr_const_type(element_segment.offset(), context.globals())?;
+			let init_ty = expr_const_type(
+				element_segment
+					.offset()
+					.as_ref()
+					.ok_or(Error("Invalid offset".into()))?,
+				context.globals(),
+			)?;
 			if init_ty != ValueType::I32 {
 				return Err(Error("segment offset should return I32".into()));
 			}
@@ -397,9 +406,7 @@ pub fn validate_module(module: Module) -> Result<ValidatedModule, Error> {
 		}
 	}
 
-	Ok(ValidatedModule {
-		module,
-	})
+	Ok(ValidatedModule { module })
 }
 
 fn validate_limits(limits: &ResizableLimits) -> Result<(), Error> {
@@ -427,15 +434,15 @@ fn validate_table_type(table_type: &TableType) -> Result<(), Error> {
 
 fn validate_global_entry(global_entry: &GlobalEntry, globals: &[GlobalType]) -> Result<(), Error> {
 	let init = global_entry.init_expr();
-		let init_expr_ty = expr_const_type(init, globals)?;
-		if init_expr_ty != global_entry.global_type().content_type() {
-			return Err(Error(format!(
-				"Trying to initialize variable of type {:?} with value of type {:?}",
-				global_entry.global_type().content_type(),
-				init_expr_ty
-			)));
-		}
-		Ok(())
+	let init_expr_ty = expr_const_type(init, globals)?;
+	if init_expr_ty != global_entry.global_type().content_type() {
+		return Err(Error(format!(
+			"Trying to initialize variable of type {:?} with value of type {:?}",
+			global_entry.global_type().content_type(),
+			init_expr_ty
+		)));
+	}
+	Ok(())
 }
 
 /// Returns type of this constant expression.
@@ -451,21 +458,20 @@ fn expr_const_type(init_expr: &InitExpr, globals: &[GlobalType]) -> Result<Value
 		Instruction::I64Const(_) => ValueType::I64,
 		Instruction::F32Const(_) => ValueType::F32,
 		Instruction::F64Const(_) => ValueType::F64,
-		Instruction::GetGlobal(idx) => {
-			match globals.get(idx as usize) {
-				Some(target_global) => {
-					if target_global.is_mutable() {
-						return Err(Error(format!("Global {} is mutable", idx)));
-					}
-					target_global.content_type()
+		Instruction::GetGlobal(idx) => match globals.get(idx as usize) {
+			Some(target_global) => {
+				if target_global.is_mutable() {
+					return Err(Error(format!("Global {} is mutable", idx)));
 				}
-				None => {
-					return Err(Error(
-						format!("Global {} doesn't exists or not yet defined", idx),
-					))
-				}
+				target_global.content_type()
 			}
-		}
+			None => {
+				return Err(Error(format!(
+					"Global {} doesn't exists or not yet defined",
+					idx
+				)))
+			}
+		},
 		_ => return Err(Error("Non constant opcode in init expr".into())),
 	};
 	if code[1] != Instruction::End {
